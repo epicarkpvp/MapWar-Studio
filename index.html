@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <title>daddy1337 world code - FINAL TEXT READABILITY</title>
+    <style>
+        body { margin:0; font-family: 'Segoe UI', sans-serif; background:#000; color:white; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; background: #0b0e14; }
+        
+        #gui {
+            position: absolute; top: 20px; right: 20px; width: 300px;
+            background: rgba(15, 20, 25, 0.95); border: 1px solid #334;
+            border-radius: 12px; z-index: 9999; padding: 20px;
+            backdrop-filter: blur(15px); box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        .stat-card { border-left: 5px solid #444; padding: 12px; margin-bottom: 10px; background: rgba(255,255,255,0.03); border-radius: 0 8px 8px 0; }
+        .val { font-size: 26px; font-weight: 900; display: block; font-family: 'Courier New', monospace; color: #fff; }
+        
+        button { 
+            width: 100%; background: #1f222a; color: white; border: 1px solid #445; 
+            padding: 14px; margin-top: 10px; cursor: pointer; border-radius: 8px; 
+            font-weight: bold; text-transform: uppercase; transition: 0.2s;
+            font-size: 12px;
+        }
+        button:hover:not(:disabled) { background: #2f3340; border-color: #667; }
+        button:disabled { opacity: 0.15; cursor: not-allowed; }
+        
+        button.active { border-color: #00ff88 !important; color: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        button.primary { background: #1a4a2e; color: #00ff88; border-color: #2d8a4d; font-size: 14px; }
+        button.nuke { background: #601111; color: #ff4444; border-color: #a32a2a; }
+        button.para { background: #554411; color: #ffcc00; border-color: #886611; }
+
+        #log { font-size: 11px; color: #ffcc00; text-align: center; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; }
+        #eventLog { font-size: 11px; height: 80px; overflow: hidden; background: rgba(0,0,0,0.4); padding: 10px; margin-top: 15px; border: 1px solid #223; display: flex; flex-direction: column-reverse; }
+
+        input, select { width: 100%; background: #0a0c10; color: #fff; border: 1px solid #334; padding: 10px; margin-top: 5px; border-radius: 6px; box-sizing: border-box; }
+
+        .nuke-flash { position: fixed; top:0; left:0; width:100vw; height:100vh; background:white; z-index:10000; opacity:0; pointer-events:none; }
+        @keyframes flashAnim { 0% { opacity:0; } 10% { opacity:1; } 100% { opacity:0; } }
+
+        #newsPaper {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 450px; background: #e8e4d9; color: #1a1a1a; padding: 35px; border: 12px double #222;
+            z-index: 10001; box-shadow: 0 0 150px rgba(0,0,0,0.9);
+        }
+        #newsPaper h1 { font-family: 'Georgia', serif; text-align: center; border-bottom: 3px solid #222; margin-top: 0; font-size: 38px; }
+
+        .curved-text-container { width: 300px; height: 300px; position: relative; left: -150px; top: -150px; pointer-events: none; }
+        .svg-text { font-family: 'Impact'; font-size: 32px; fill: #fff; paint-order: stroke fill; stroke-width: 6px; stroke-linejoin: round; }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="flash" class="nuke-flash"></div>
+
+<div id="gui">
+    <button onclick="resetSelection()" style="font-size:10px; padding:5px; background:#222;">✖ RESET SELECTION</button>
+    
+    <div class="stat-card" id="atkCard">
+        <div id="aTitle" style="font-size:10px; color:#aaa;">ANFALLARE</div>
+        <span class="val" id="aCount">0</span>
+    </div>
+    <div class="stat-card" id="defCard">
+        <div id="dTitle" style="font-size:10px; color:#aaa;">FÖRSVARARE</div>
+        <span class="val" id="dCount">0</span>
+    </div>
+
+    <div id="log">1. VÄLJ ANFALLARE PÅ KARTAN</div>
+
+    <select id="enemySelect" onchange="updateUI()"><option disabled selected>Välj mål...</option></select>
+    
+    <div style="display:flex; gap:5px;">
+        <input type="number" id="soldiers" value="1000000">
+        <input type="number" id="def_soldiers" value="800000">
+    </div>
+
+     <div style="font-size:10px; color:#888; margin-top:5px; text-align:center;">WAR SPEED</div>
+    <input type="range" id="warDuration" min="1" max="100" value="50">
+
+    <button id="setupBtn" onclick="startSetup()" disabled>📍 Place Front Line</button>
+    
+    <div id="warControls" style="display:none;">
+        <button onclick="reinforce()" style="background:#3a1a1a;">🔺 REINFORCE</button>
+        <button id="paraBtn" onclick="activateParaMode()" class="para">🪂 PARATROOPERS</button>
+        <button onclick="launchNuke()" class="nuke">☢️ LAUNCH NUKE</button>
+    </div>
+
+    <button id="warBtn" onclick="launchInvasion()" disabled class="primary">⚔️ Start Invasion</button>
+
+    <div id="eventLog"></div>
+</div>
+
+<div id="newsPaper">
+    <h1>THE WORLD TIMES</h1>
+    <h2 id="newsHeadline" style="text-align:center; text-transform:uppercase; font-family:serif;">CAPITULATION!</h2>
+    <p id="newsText" style="font-family:serif; line-height:1.6; font-size:18px;"></p>
+    <button onclick="document.getElementById('newsPaper').style.display='none'" style="background:#222; color:#fff; width:100%; padding:10px; cursor:pointer;">CLOSE ARCHIVE</button>
+</div>
+
+<script>
+const flagColors = {"Sweden":"#005293","Finland":"#ffffff","Norway":"#ba3d3d","Denmark":"#c64c4c","Germany":"#555555","France":"#002395","Russia":"#cc2222","Ukraine":"#ffd700","Poland":"#dc143c","United Kingdom":"#012169","United States of America":"#3c3b6e"};
+
+var map = L.map('map', {zoomControl: false, attributionControl: false}).setView([55, 15], 4);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+let countries = {}, selectedAtk = null, selectedDef = null, activeWar = null, setupStep = 0, paraMode = false;
+let points = { s: null, e: null }, pMarkers = [];
+let occupiedLayer, remainingLayer, textMarker;
+
+fetch("https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json")
+.then(res => res.json()).then(data => {
+    L.geoJSON(data, {
+        style: (f) => ({ color: "#334", weight: 1.5, fillColor: flagColors[f.properties.name] || "#222", fillOpacity: 0.25 }),
+        onEachFeature: (feature, layer) => {
+            let n = feature.properties.name;
+            countries[n] = { layer, feature, name: n, color: flagColors[n] || "#888" };
+            
+            layer.on('click', (e) => {
+                if(setupStep > 0) return;
+                if(!activeWar) {
+                    if(!selectedAtk) {
+                        selectedAtk = n;
+                        layer.setStyle({fillOpacity: 0.7, color: "#fff", weight: 3});
+                        document.getElementById("aTitle").innerText = n.toUpperCase();
+                        document.getElementById("atkCard").style.borderLeftColor = countries[n].color;
+                        updateList();
+                        document.getElementById("log").innerText = "2. VÄLJ FÖRSVARARE PÅ KARTAN";
+                    } else if(selectedAtk !== n) {
+                        selectedDef = n;
+                        document.getElementById("enemySelect").value = n;
+                        updateUI();
+                        document.getElementById("log").innerText = "3. TRYCK PÅ 'PLACE FRONT LINE'";
+                    }
+                }
+                L.DomEvent.stopPropagation(e);
+            });
+        }
+    }).addTo(map);
+});
+
+map.on('click', (e) => {
+    if(paraMode && activeWar) {
+        activeWar.dT *= 0.75;
+        pushLog("PARATROOPERS DROPPED!", "#ffcc00");
+        paraMode = false;
+        document.getElementById("paraBtn").classList.remove("active");
+        return;
+    }
+
+    if(setupStep === 1) {
+        points.s = e.latlng;
+        pMarkers.push(L.circleMarker(e.latlng, {color:'#00ff88', radius:10, fillOpacity:1, weight:3}).addTo(map));
+        setupStep = 2;
+        document.getElementById("log").innerText = "KLICKA DÄR INVASIONEN SLUTAR";
+    } 
+    else if(setupStep === 2) {
+        points.e = e.latlng;
+        pMarkers.push(L.circleMarker(e.latlng, {color:'#ff4444', radius:10, fillOpacity:1, weight:3}).addTo(map));
+        pMarkers.push(L.polyline([points.s, points.e], {color: '#fff', dashArray: '5, 10', weight: 2}).addTo(map));
+        setupStep = 0;
+        document.getElementById("setupBtn").classList.remove("active");
+        document.getElementById("warBtn").disabled = false;
+        document.getElementById("log").innerText = "KLAR! TRYCK PÅ STARTA INVASION";
+    }
+});
+
+function startSetup() {
+    if(!selectedAtk || !selectedDef) return;
+    setupStep = 1;
+    pMarkers.forEach(m => map.removeLayer(m));
+    pMarkers = [];
+    document.getElementById("setupBtn").classList.add("active");
+    document.getElementById("log").innerText = "KLICKA PÅ START-GRÄNSEN";
+}
+
+function updateList() {
+    let s = document.getElementById("enemySelect");
+    s.innerHTML = "<option disabled selected>Välj mål...</option>";
+    Object.keys(countries).sort().forEach(c => { if(c !== selectedAtk) s.add(new Option(c, c)); });
+}
+
+function updateUI() {
+    let d = document.getElementById("enemySelect").value;
+    selectedDef = d;
+    if(countries[d]) {
+        document.getElementById("dTitle").innerText = d.toUpperCase();
+        document.getElementById("defCard").style.borderLeftColor = countries[d].color;
+        document.getElementById("setupBtn").disabled = false;
+    }
+}
+
+function launchInvasion() {
+    let dName = selectedDef;
+    let sliderVal = document.getElementById("warDuration").value;
+    let speedCalc = (sliderVal / 100) * 0.0025; 
+
+    activeWar = {
+        atk: countries[selectedAtk],
+        def: countries[dName],
+        aT: parseInt(document.getElementById("soldiers").value) || 1000000,
+        dT: parseInt(document.getElementById("def_soldiers").value) || 800000,
+        aMax: parseInt(document.getElementById("soldiers").value) || 1000000,
+        dMax: parseInt(document.getElementById("def_soldiers").value) || 800000,
+        p: 0.001,
+        speed: speedCalc,
+        dist: turf.distance([points.s.lng, points.s.lat], [points.s.lng, points.s.lat]), // Börja vid start
+        totalDist: turf.distance([points.s.lng, points.s.lat], [points.e.lng, points.e.lat]),
+        bearing: turf.bearing([points.s.lng, points.s.lat], [points.e.lng, points.e.lat])
+    };
+
+    document.getElementById("warControls").style.display = "block";
+    document.getElementById("warBtn").disabled = true;
+    
+    textMarker = L.marker([points.s.lat, points.s.lng], {
+        icon: createTextIcon(activeWar.bearing, activeWar.atk.color, activeWar.def.color), 
+        zIndexOffset: 1000
+    }).addTo(map);
+    
+    activeWar.def.layer.setStyle({opacity:0, fillOpacity:0});
+
+    let ticker = setInterval(() => {
+        if(!activeWar) return clearInterval(ticker);
+        
+        activeWar.p += activeWar.speed;
+        activeWar.aT -= (activeWar.aMax * 0.0006);
+        activeWar.dT -= (activeWar.dMax * 0.0012);
+
+        document.getElementById("aCount").innerText = Math.floor(Math.max(0, activeWar.aT)).toLocaleString();
+        document.getElementById("dCount").innerText = Math.floor(Math.max(0, activeWar.dT)).toLocaleString();
+
+        drawInvasion();
+
+        if(activeWar.p >= 1 || activeWar.dT <= 0) {
+            clearInterval(ticker);
+            finishWar(true);
+        } else if(activeWar.aT <= 0) {
+            clearInterval(ticker);
+            finishWar(false);
+        }
+    }, 40);
+}
+
+function drawInvasion() {
+    if(!activeWar) return;
+    let w = activeWar;
+    let currentRadius = w.totalDist * w.p;
+    
+    let nextPos = turf.destination([points.s.lng, points.s.lat], currentRadius, w.bearing);
+    textMarker.setLatLng([nextPos.geometry.coordinates[1], nextPos.geometry.coordinates[0]]);
+
+    let pts = [];
+    for(let i=0; i<=360; i+=10) {
+        let d = turf.destination([points.s.lng, points.s.lat], currentRadius, i);
+        pts.push(d.geometry.coordinates);
+    }
+    let poly = turf.polygon([pts]);
+
+    try {
+        let occ = turf.intersect(w.def.feature, poly);
+        let rem = turf.difference(w.def.feature, poly);
+        if(occupiedLayer) map.removeLayer(occupiedLayer);
+        if(remainingLayer) map.removeLayer(remainingLayer);
+        if(occ) occupiedLayer = L.geoJSON(occ, {style:{fillColor:w.atk.color, fillOpacity:0.7, color:'#fff', weight:1}}).addTo(map);
+        if(rem) remainingLayer = L.geoJSON(rem, {style:{fillColor:w.def.color, fillOpacity:0.2, color:'#444', weight:1}}).addTo(map);
+        
+        let el = textMarker.getElement();
+        if(el) {
+            let svgA = el.querySelector('#svgA');
+            let svgD = el.querySelector('#svgD');
+            if(svgA) svgA.textContent = Math.floor(Math.max(0, w.aT)).toLocaleString();
+            if(svgD) svgD.textContent = Math.floor(Math.max(0, w.dT)).toLocaleString();
+        }
+    } catch(e){}
+}
+
+function finishWar(won) {
+    let offenderName = activeWar.atk.name;
+    let defenderName = activeWar.def.name;
+    let winnerColor = activeWar.atk.color;
+
+    if(won) {
+        activeWar.def.layer.setStyle({fillColor: winnerColor, fillOpacity: 0.8, opacity: 1, color: '#fff'});
+        countries[defenderName].color = winnerColor;
+        document.getElementById("newsHeadline").innerText = defenderName + " IS CONQUERED!";
+        document.getElementById("newsText").innerText = offenderName + " forces have successfully annexed " + defenderName + ". All resistance has ceased.";
+        document.getElementById("newsPaper").style.display = "block";
+        pushLog("VICTORY! " + defenderName + " FELL", "#00ff88");
+    } else {
+        activeWar.def.layer.setStyle({fillOpacity: 0.25, opacity: 1});
+        pushLog("INVASION FAILED", "#ff4444");
+    }
+
+    if(occupiedLayer) map.removeLayer(occupiedLayer);
+    if(remainingLayer) map.removeLayer(remainingLayer);
+    if(textMarker) map.removeLayer(textMarker);
+    pMarkers.forEach(m => map.removeLayer(m));
+    
+    document.getElementById("warControls").style.display = "none";
+    activeWar = null;
+    resetSelection();
+}
+
+function resetSelection() {
+    if(selectedAtk && countries[selectedAtk]) countries[selectedAtk].layer.setStyle({fillOpacity: 0.25, color: "#334", weight: 1.5});
+    selectedAtk = null;
+    selectedDef = null;
+    setupStep = 0;
+    document.getElementById("aTitle").innerText = "OFFENDER";
+    document.getElementById("dTitle").innerText = "DEFENDER";
+    document.getElementById("atkCard").style.borderLeftColor = "#444";
+    document.getElementById("defCard").style.borderLeftColor = "#444";
+    document.getElementById("setupBtn").disabled = true;
+    document.getElementById("warBtn").disabled = true;
+    document.getElementById("log").innerText = "1. VÄLJ ANFALLARE PÅ KARTAN";
+    pMarkers.forEach(m => map.removeLayer(m));
+}
+
+function createTextIcon(bearing, c1, c2) {
+    // Normalisera bäring till 0-360
+    let normBearing = (bearing + 360) % 360;
+    
+    let displayRotation = bearing;
+    let pathAtk = "M 50,150 A 100,100 0 0,1 250,150";
+    let pathDef = "M 50,170 A 100,100 0 0,0 250,170";
+
+    // Om vi anfaller åt vänster (mellan 90 och 270 grader)
+    // flippar vi hela ikonen så den pekar "rätt" väg för ögat
+    if (normBearing > 90 && normBearing < 270) {
+        displayRotation = bearing + 180;
+    }
+
+    return L.divIcon({ 
+        className: '', 
+        html: `
+        <div class="curved-text-container" style="transform: rotate(${displayRotation}deg);">
+            <svg viewBox="0 0 300 300">
+                <path id="pAtk" d="${pathAtk}" fill="none" />
+                <text class="svg-text" stroke="${c1}">
+                    <textPath href="#pAtk" startOffset="50%" text-anchor="middle" id="svgA">0</textPath>
+                </text>
+                <path id="pDef" d="${pathDef}" fill="none" />
+                <text class="svg-text" stroke="${c2}">
+                    <textPath href="#pDef" startOffset="50%" text-anchor="middle" id="svgD">0</textPath>
+                </text>
+            </svg>
+        </div>` 
+    });
+}
+
+function pushLog(m, c) {
+    let e = document.createElement("div"); e.innerHTML = `<b style="color:${c}">[SYSTEM]</b> ${m}`;
+    document.getElementById("eventLog").prepend(e);
+}
+
+function reinforce() { if(activeWar) activeWar.aT += (activeWar.aMax * 0.25); }
+
+function launchNuke() {
+    if(!activeWar) return;
+    document.getElementById("flash").style.animation = "flashAnim 1s forwards";
+    activeWar.dT *= 0.3;
+    activeWar.aT *= 0.9;
+    pushLog("☢️ NUKE DETONATED!", "#ff0000");
+    setTimeout(() => document.getElementById("flash").style.animation = "", 1100);
+}
+
+function activateParaMode() { paraMode = true; document.getElementById("paraBtn").classList.add("active"); }
+</script>
+</body>
+</html>
